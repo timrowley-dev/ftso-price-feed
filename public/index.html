@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Importing EthersJS (https://docs.ethers.io/v5/)  -->
+    <script
+      src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"
+      type="application/javascript"
+    ></script>
+    <!-- A "No Class" CSS stylesheet (https://github.com/andybrewer/mvp/) -->
+    <link rel="stylesheet" href="https://unpkg.com/mvp.css" />
+
+    <title>FTSO Price Feed</title>
+  </head>
+  <body style="padding-left: 36px">
+    <h2>FTSO Price Feed</h2>
+    <h4>Fetch Prices</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Price</th>
+        </tr>
+      </thead>
+      <tbody id="pricesTableBody"></tbody>
+    </table>
+
+    <div>
+      Last Update:
+      <span id="timestamp">Loading...</span>
+    </div>
+  </body>
+</html>
+
+<script>
+  // Create referrences to the table elements
+  const tableBodyElement = document.getElementById("pricesTableBody");
+  const timestampElement = document.getElementById("timestamp");
+
+  // Create Ethers provider instance
+  var provider = new ethers.providers.JsonRpcProvider(
+    "https://sgb.ftso.com.au/ext/bc/C/rpc"
+  );
+
+  // Create FTSO Registry object with its address and ABI
+  const ftsoRegistry = {
+    address: "0x6D222fb4544ba230d4b90BA1BfC0A01A94E6cB23",
+    abi: [
+      {
+        type: "constructor",
+        stateMutability: "nonpayable",
+        inputs: [
+          { type: "address", name: "_governance", internalType: "address" },
+        ],
+      },
+      {
+        type: "event",
+        name: "GovernanceProposed",
+        inputs: [
+          {
+            type: "address",
+            name: "proposedGovernance",
+            internalType: "address",
+            indexed: false,
+          },
+        ],
+        anonymous: false,
+      },
+      {
+        type: "event",
+        name: "GovernanceUpdated",
+        inputs: [
+          {
+            type: "address",
+            name: "oldGovernance",
+            internalType: "address",
+            indexed: false,
+          },
+          {
+            type: "address",
+            name: "newGoveranance",
+            internalType: "address",
+            indexed: false,
+          },
+        ],
+        anonymous: false,
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [
+          { type: "uint256", name: "_ftsoIndex", internalType: "uint256" },
+        ],
+        name: "addFtso",
+        inputs: [
+          {
+            type: "address",
+            name: "_ftsoContract",
+            internalType: "contract IIFtso",
+          },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "claimGovernance",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          { type: "address", name: "", internalType: "contract IIFtsoManager" },
+        ],
+        name: "ftsoManager",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IIFtso[]",
+          },
+        ],
+        name: "getAllFtsos",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          { type: "uint256", name: "_price", internalType: "uint256" },
+          { type: "uint256", name: "_timestamp", internalType: "uint256" },
+        ],
+        name: "getCurrentPrice",
+        inputs: [{ type: "string", name: "_symbol", internalType: "string" }],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          { type: "uint256", name: "_price", internalType: "uint256" },
+          { type: "uint256", name: "_timestamp", internalType: "uint256" },
+        ],
+        name: "getCurrentPrice",
+        inputs: [
+          { type: "uint256", name: "_assetIndex", internalType: "uint256" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address",
+            name: "_activeFtso",
+            internalType: "contract IIFtso",
+          },
+        ],
+        name: "getFtso",
+        inputs: [
+          { type: "uint256", name: "_assetIndex", internalType: "uint256" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address",
+            name: "_activeFtso",
+            internalType: "contract IIFtso",
+          },
+        ],
+        name: "getFtsoBySymbol",
+        inputs: [{ type: "string", name: "_symbol", internalType: "string" }],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address[5]",
+            name: "_ftsoAddressHistory",
+            internalType: "contract IIFtso[5]",
+          },
+        ],
+        name: "getFtsoHistory",
+        inputs: [
+          { type: "uint256", name: "_assetIndex", internalType: "uint256" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          { type: "uint256", name: "_assetIndex", internalType: "uint256" },
+        ],
+        name: "getFtsoIndex",
+        inputs: [{ type: "string", name: "_symbol", internalType: "string" }],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [{ type: "string", name: "_symbol", internalType: "string" }],
+        name: "getFtsoSymbol",
+        inputs: [
+          { type: "uint256", name: "_assetIndex", internalType: "uint256" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IFtsoGenesis[]",
+          },
+        ],
+        name: "getFtsos",
+        inputs: [
+          {
+            type: "uint256[]",
+            name: "_assetIndices",
+            internalType: "uint256[]",
+          },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IIFtso[]",
+          },
+        ],
+        name: "getSupportedFtsos",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "uint256[]",
+            name: "_supportedIndices",
+            internalType: "uint256[]",
+          },
+        ],
+        name: "getSupportedIndices",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "uint256[]",
+            name: "_supportedIndices",
+            internalType: "uint256[]",
+          },
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IIFtso[]",
+          },
+        ],
+        name: "getSupportedIndicesAndFtsos",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "uint256[]",
+            name: "_supportedIndices",
+            internalType: "uint256[]",
+          },
+          {
+            type: "string[]",
+            name: "_supportedSymbols",
+            internalType: "string[]",
+          },
+        ],
+        name: "getSupportedIndicesAndSymbols",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "uint256[]",
+            name: "_supportedIndices",
+            internalType: "uint256[]",
+          },
+          {
+            type: "string[]",
+            name: "_supportedSymbols",
+            internalType: "string[]",
+          },
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IIFtso[]",
+          },
+        ],
+        name: "getSupportedIndicesSymbolsAndFtsos",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "string[]",
+            name: "_supportedSymbols",
+            internalType: "string[]",
+          },
+        ],
+        name: "getSupportedSymbols",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [
+          {
+            type: "string[]",
+            name: "_supportedSymbols",
+            internalType: "string[]",
+          },
+          {
+            type: "address[]",
+            name: "_ftsos",
+            internalType: "contract IIFtso[]",
+          },
+        ],
+        name: "getSupportedSymbolsAndFtsos",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [{ type: "address", name: "", internalType: "address" }],
+        name: "governance",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "initialise",
+        inputs: [
+          { type: "address", name: "_governance", internalType: "address" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "proposeGovernance",
+        inputs: [
+          { type: "address", name: "_governance", internalType: "address" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "view",
+        outputs: [{ type: "address", name: "", internalType: "address" }],
+        name: "proposedGovernance",
+        inputs: [],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "removeFtso",
+        inputs: [
+          { type: "address", name: "_ftso", internalType: "contract IIFtso" },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "setFtsoManagerAddress",
+        inputs: [
+          {
+            type: "address",
+            name: "_ftsoManager",
+            internalType: "contract IIFtsoManager",
+          },
+        ],
+      },
+      {
+        type: "function",
+        stateMutability: "nonpayable",
+        outputs: [],
+        name: "transferGovernance",
+        inputs: [
+          { type: "address", name: "_governance", internalType: "address" },
+        ],
+      },
+    ],
+  };
+
+  // Create FTSO Registry contract instance
+  const ftsoRegistryContract = new ethers.Contract(
+    ftsoRegistry.address,
+    ftsoRegistry.abi,
+    provider
+  );
+
+  // Create empty array for supported symbols
+  var supportedSymbols = [];
+
+  // Main
+  window.onload = async () => {
+    // Fetch supported FTSO symbols
+    supportedSymbols = await ftsoRegistryContract.getSupportedSymbols();
+
+    // Fetch prices for all supported FTSO symbols
+    await getSymbolPrices();
+
+    // Listen for FTSO finalizations and refresh FTSO prices
+    await finalizationListener();
+  };
+
+  async function getSymbolPrices() {
+    // Reset table body to empty
+    tableBodyElement.innerHTML = "";
+
+    // Itterate through FTSO symbols
+    for (let symbol of supportedSymbols) {
+      // Fetch price from FtsoRegistry contract
+      let response = await ftsoRegistryContract["getCurrentPrice(string)"](
+        symbol
+      );
+
+      // Parse BigNumber instances to JS number
+      let price = Number(response._price) / 10 ** 5; // Exponent of 5
+      let timestamp = Number(response._timestamp);
+
+      // Create new row and cells in table
+      const row = document.createElement("tr");
+      const cell1 = document.createElement("td"); // Symbol
+      const cell2 = document.createElement("td"); // Price
+
+      // Fill new row with data
+      cell1.innerHTML =
+        `<img style="width:24px; margin-right:10px;" src="https://cdn.ftso.com.au/assets/images/token-logos/${symbol.toLowerCase()}_64x64.png">` +
+        symbol;
+      cell2.innerHTML = "$" + price;
+
+      // Append new row to the table to be viewed
+      row.append(cell1, cell2);
+      tableBodyElement.appendChild(row);
+
+      // Update the last update timestamp to FTSO's rpeorted timestamp
+      timestampElement.innerHTML = new Date(timestamp * 1000).toLocaleString();
+    }
+  }
+
+  async function finalizationListener() {
+    // Fetch supported FTSOs (addresses)
+    let supportedFtsos = await ftsoRegistryContract.getSupportedFtsos();
+
+    let ftso = {
+      address: supportedFtsos[0],
+      abi: [
+        {
+          type: "constructor",
+          stateMutability: "nonpayable",
+          inputs: [
+            { type: "string", name: "_symbol", internalType: "string" },
+            {
+              type: "address",
+              name: "_priceSubmitter",
+              internalType: "contract IPriceSubmitter",
+            },
+            {
+              type: "address",
+              name: "_wNat",
+              internalType: "contract IIVPToken",
+            },
+            {
+              type: "address",
+              name: "_ftsoManager",
+              internalType: "contract IIFtsoManager",
+            },
+            {
+              type: "uint256",
+              name: "_initialPriceUSD",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_priceDeviationThresholdBIPS",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_cyclicBufferSize",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "event",
+          name: "LowTurnout",
+          inputs: [
+            {
+              type: "uint256",
+              name: "epochId",
+              internalType: "uint256",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "natTurnout",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "lowNatTurnoutThresholdBIPS",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "timestamp",
+              internalType: "uint256",
+              indexed: false,
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PriceEpochInitializedOnFtso",
+          inputs: [
+            {
+              type: "uint256",
+              name: "epochId",
+              internalType: "uint256",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "endTime",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "timestamp",
+              internalType: "uint256",
+              indexed: false,
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PriceFinalized",
+          inputs: [
+            {
+              type: "uint256",
+              name: "epochId",
+              internalType: "uint256",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "price",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "bool",
+              name: "rewardedFtso",
+              internalType: "bool",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "lowRewardPrice",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "highRewardPrice",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint8",
+              name: "finalizationType",
+              internalType: "enum IFtso.PriceFinalizationType",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "timestamp",
+              internalType: "uint256",
+              indexed: false,
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PriceHashSubmitted",
+          inputs: [
+            {
+              type: "address",
+              name: "submitter",
+              internalType: "address",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "epochId",
+              internalType: "uint256",
+              indexed: true,
+            },
+            {
+              type: "bytes32",
+              name: "hash",
+              internalType: "bytes32",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "timestamp",
+              internalType: "uint256",
+              indexed: false,
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PriceRevealed",
+          inputs: [
+            {
+              type: "address",
+              name: "voter",
+              internalType: "address",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "epochId",
+              internalType: "uint256",
+              indexed: true,
+            },
+            {
+              type: "uint256",
+              name: "price",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "random",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "timestamp",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "votePowerNat",
+              internalType: "uint256",
+              indexed: false,
+            },
+            {
+              type: "uint256",
+              name: "votePowerAsset",
+              internalType: "uint256",
+              indexed: false,
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "ASSET_PRICE_USD_DECIMALS",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "activateFtso",
+          inputs: [
+            {
+              type: "uint256",
+              name: "_firstEpochStartTime",
+              internalType: "uint256",
+            },
+            { type: "uint256", name: "_submitPeriod", internalType: "uint256" },
+            { type: "uint256", name: "_revealPeriod", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "bool", name: "", internalType: "bool" }],
+          name: "active",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "address", name: "", internalType: "contract IIFtso" },
+          ],
+          name: "assetFtsos",
+          inputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "address", name: "", internalType: "contract IIVPToken" },
+          ],
+          name: "assets",
+          inputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "averageFinalizePriceEpoch",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "configureEpochs",
+          inputs: [
+            {
+              type: "uint256",
+              name: "_maxVotePowerNatThresholdFraction",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_maxVotePowerAssetThresholdFraction",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_lowAssetUSDThreshold",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_highAssetUSDThreshold",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_highAssetTurnoutThresholdBIPS",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_lowNatTurnoutThresholdBIPS",
+              internalType: "uint256",
+            },
+            {
+              type: "address[]",
+              name: "_trustedAddresses",
+              internalType: "address[]",
+            },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "deactivateFtso",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            {
+              type: "uint256",
+              name: "_maxVotePowerNatThresholdFraction",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_maxVotePowerAssetThresholdFraction",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_lowAssetUSDThreshold",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_highAssetUSDThreshold",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_highAssetTurnoutThresholdBIPS",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_lowNatTurnoutThresholdBIPS",
+              internalType: "uint256",
+            },
+            {
+              type: "address[]",
+              name: "_trustedAddresses",
+              internalType: "address[]",
+            },
+          ],
+          name: "epochsConfiguration",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [
+            {
+              type: "address[]",
+              name: "_eligibleAddresses",
+              internalType: "address[]",
+            },
+            {
+              type: "uint256[]",
+              name: "_natWeights",
+              internalType: "uint256[]",
+            },
+            {
+              type: "uint256",
+              name: "_natWeightsSum",
+              internalType: "uint256",
+            },
+          ],
+          name: "finalizePriceEpoch",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+            { type: "bool", name: "_returnRewardData", internalType: "bool" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "forceFinalizePriceEpoch",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            {
+              type: "address",
+              name: "",
+              internalType: "contract IIFtsoManager",
+            },
+          ],
+          name: "ftsoManager",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "address", name: "", internalType: "contract IIVPToken" },
+          ],
+          name: "getAsset",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "address[]", name: "", internalType: "contract IIFtso[]" },
+          ],
+          name: "getAssetFtsos",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getCurrentEpochId",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "uint256", name: "_price", internalType: "uint256" },
+            { type: "uint256", name: "_timestamp", internalType: "uint256" },
+          ],
+          name: "getCurrentPrice",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getCurrentRandom",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getEpochId",
+          inputs: [
+            { type: "uint256", name: "_timestamp", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getEpochPrice",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getEpochPriceForVoter",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+            { type: "address", name: "_voter", internalType: "address" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            {
+              type: "uint256",
+              name: "_firstEpochStartTime",
+              internalType: "uint256",
+            },
+            { type: "uint256", name: "_submitPeriod", internalType: "uint256" },
+            { type: "uint256", name: "_revealPeriod", internalType: "uint256" },
+          ],
+          name: "getPriceEpochConfiguration",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+            {
+              type: "uint256",
+              name: "_epochSubmitEndTime",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_epochRevealEndTime",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_votePowerBlock",
+              internalType: "uint256",
+            },
+            { type: "bool", name: "_fallbackMode", internalType: "bool" },
+          ],
+          name: "getPriceEpochData",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "getRandom",
+          inputs: [
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            {
+              type: "address[]",
+              name: "_assets",
+              internalType: "contract IIVPToken[]",
+            },
+            {
+              type: "uint256[]",
+              name: "_assetMultipliers",
+              internalType: "uint256[]",
+            },
+            {
+              type: "uint256",
+              name: "_totalVotePowerNat",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_totalVotePowerAsset",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_assetWeightRatio",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_votePowerBlock",
+              internalType: "uint256",
+            },
+          ],
+          name: "getVoteWeightingParameters",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "initializeCurrentEpochStateForReveal",
+          inputs: [
+            {
+              type: "uint256",
+              name: "_circulatingSupplyNat",
+              internalType: "uint256",
+            },
+            { type: "bool", name: "_fallbackMode", internalType: "bool" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "priceDeviationThresholdBIPS",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "priceEpochCyclicBufferSize",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            {
+              type: "address",
+              name: "",
+              internalType: "contract IPriceSubmitter",
+            },
+          ],
+          name: "priceSubmitter",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "revealPriceSubmitter",
+          inputs: [
+            { type: "address", name: "_voter", internalType: "address" },
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+            { type: "uint256", name: "_price", internalType: "uint256" },
+            { type: "uint256", name: "_random", internalType: "uint256" },
+            { type: "uint256", name: "_voterWNatVP", internalType: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "setAsset",
+          inputs: [
+            {
+              type: "address",
+              name: "_asset",
+              internalType: "contract IIVPToken",
+            },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "setAssetFtsos",
+          inputs: [
+            {
+              type: "address[]",
+              name: "_assetFtsos",
+              internalType: "contract IIFtso[]",
+            },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "setVotePowerBlock",
+          inputs: [
+            {
+              type: "uint256",
+              name: "_votePowerBlock",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "submitPriceHashSubmitter",
+          inputs: [
+            { type: "address", name: "_sender", internalType: "address" },
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+            { type: "bytes32", name: "_hash", internalType: "bytes32" },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [{ type: "string", name: "", internalType: "string" }],
+          name: "symbol",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [],
+          name: "updateInitialPrice",
+          inputs: [
+            {
+              type: "uint256",
+              name: "_initialPriceUSD",
+              internalType: "uint256",
+            },
+            {
+              type: "uint256",
+              name: "_initialPriceTimestamp",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "function",
+          stateMutability: "view",
+          outputs: [
+            { type: "address", name: "", internalType: "contract IIVPToken" },
+          ],
+          name: "wNat",
+          inputs: [],
+        },
+        {
+          type: "function",
+          stateMutability: "nonpayable",
+          outputs: [{ type: "uint256", name: "", internalType: "uint256" }],
+          name: "wNatVotePowerCached",
+          inputs: [
+            { type: "address", name: "_owner", internalType: "address" },
+            { type: "uint256", name: "_epochId", internalType: "uint256" },
+          ],
+        },
+      ],
+    };
+
+    // Create FtsoContract instance
+    const ftsoContract = new ethers.Contract(ftso.address, ftso.abi, provider);
+
+    // Listen for PriceFinalized event
+    ftsoContract.on("PriceFinalized", async () => {
+      // Call getSymbolPrices to refresh FTSO prices and rebuild table
+      getSymbolPrices();
+    });
+  }
+</script>
